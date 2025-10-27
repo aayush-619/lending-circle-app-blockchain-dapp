@@ -1,0 +1,28 @@
+# Node.js
+node_modules/
+package-lock.json
+npm-debug.log
+yarn.lock
+yarn-error.log
+
+# Hardhat
+artifacts/
+cache/
+coverage.json
+coverage/
+typechain-types/
+
+# Hardhat config (if it contains private keys)
+# hardhat.config.js 
+# !! Uncomment the line above if you plan to add private keys to it.
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
