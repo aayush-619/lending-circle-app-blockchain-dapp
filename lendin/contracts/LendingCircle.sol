@@ -213,6 +213,80 @@ contract LendingCircle {
         uint256 deadline = block.timestamp + resource.borrowDuration;
         emit ResourceBorrowed(_resourceId, msg.sender, stake, deadline);
     }
+
+    function getAvailableResources() public view returns (uint256[] memory) {
+        uint256 availableCount = 0;
+        for (uint256 i = 1; i < _resourceIdCounter; i++) {
+            if (resources[i].active && resources[i].currentBorrowerCount < resources[i].maxConcurrentBorrows) {
+                availableCount++;
+            }
+        }
+
+        uint256[] memory availableResources = new uint256[](availableCount);
+        uint256 counter = 0;
+        for (uint256 i = 1; i < _resourceIdCounter; i++) {
+            if (resources[i].active && resources[i].currentBorrowerCount < resources[i].maxConcurrentBorrows) {
+                availableResources[counter] = i;
+                counter++;
+            }
+        }
+
+        return availableResources;
+    }
+
+    function getMyBorrowedResources() public view returns (uint256[] memory) {
+        uint256 borrowedCount = 0;
+        for (uint256 i = 1; i < _resourceIdCounter; i++) {
+            if (activeBorrows[msg.sender][i].isActive) {
+                borrowedCount++;
+            }
+        }
+
+        uint256[] memory borrowedResources = new uint256[](borrowedCount);
+        uint256 counter = 0;
+        for (uint256 i = 1; i < _resourceIdCounter; i++) {
+            if (activeBorrows[msg.sender][i].isActive) {
+                borrowedResources[counter] = i;
+                counter++;
+            }
+        }
+
+        return borrowedResources;
+    }
+
+    function getResourceDetails(uint256 _resourceId) 
+        public 
+        view 
+        returns (
+            uint256 id,
+            string memory name,
+            ResourceType resourceType,
+            uint256 maxConcurrentBorrows,
+            uint256 currentBorrowerCount,
+            uint256 stakeAmount,
+            uint256 borrowDuration,
+            uint256 latePenaltyPerDay,
+            uint256 onTimeReward,
+            string memory metadataURI,
+            bool active
+        ) 
+    {
+        Resource memory resource = resources[_resourceId];
+        return (
+            resource.id,
+            resource.name,
+            resource.resourceType,
+            resource.maxConcurrentBorrows,
+            resource.currentBorrowerCount,
+            resource.stakeAmount,
+            resource.borrowDuration,
+            resource.latePenaltyPerDay,
+            resource.onTimeReward,
+            resource.metadataURI,
+            resource.active
+        );
+    }
+    
     /**
      * @dev Internal function to calculate refund and penalty.
      * This makes the logic testable and reusable.

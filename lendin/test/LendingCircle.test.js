@@ -95,6 +95,168 @@ describe("LendingCircle", function () {
       ).to.be.revertedWith("Physical items must have maxBorrows = 1");
     });
   });
+
+  describe("borrowResource", function () {
+    const resourceId = 1;
+    let stakeAmount;
+
+    beforeEach(async function () {
+      stakeAmount = ethers.parseUnits("100", 18);
+      await lendingCircle.connect(owner).addResource(
+        "Test Book", 1, 5, stakeAmount, 86400, 0, 0, ""
+      );
+
+      // Mint tokens to user1 and approve the contract
+      await token.connect(owner).mint(user1.address, stakeAmount);
+      await token.connect(user1).approve(lendingCircle.target, stakeAmount);
+    });
+
+    it("Should allow a user to borrow an available resource", async function () {
+      await expect(lendingCircle.connect(user1).borrowResource(resourceId))
+        .to.emit(lendingCircle, "ResourceBorrowed");
+
+      const resource = await lendingCircle.resources(resourceId);
+      expect(resource.currentBorrowerCount).to.equal(1);
+
+      const borrowRecord = await lendingCircle.activeBorrows(user1.address, resourceId);
+      expect(borrowRecord.isActive).to.be.true;
+      expect(borrowRecord.stakeDeposited).to.equal(stakeAmount);
+    });
+
+    it("Should REVERT if resource is not available", async function () {
+      const nonExistentResourceId = 99;
+      await expect(
+        lendingCircle.connect(user1).borrowResource(nonExistentResourceId)
+      ).to.be.revertedWith("Resource is not available");
+    });
+
+    it("Should REVERT if resource is at max capacity", async function () {
+      // Create a resource with maxBorrows = 1
+      await lendingCircle.connect(owner).addResource(
+        "Single Book", 0, 1, stakeAmount, 86400, 0, 0, ""
+      );
+      const singleBookId = 2;
+
+      // user1 borrows the book
+      await token.connect(owner).mint(user1.address, stakeAmount);
+      await token.connect(user1).approve(lendingCircle.target, stakeAmount);
+      await lendingCircle.connect(user1).borrowResource(singleBookId);
+
+      // user2 tries to borrow the same book
+      await token.connect(owner).mint(user2.address, stakeAmount);
+      await token.connect(user2).approve(lendingCircle.target, stakeAmount);
+      await expect(
+        lendingCircle.connect(user2).borrowResource(singleBookId)
+      ).to.be.revertedWith("Resource at max capacity");
+    });
+
+    it("Should REVERT if user is already borrowing the item", async function () {
+      await lendingCircle.connect(user1).borrowResource(resourceId);
+
+      await expect(
+        lendingCircle.connect(user1).borrowResource(resourceId)
+      ).to.be.revertedWith("You are already borrowing this");
+    });
+
+    it("Should REVERT if token transfer fails (insufficient approval)", async function () {
+      // user2 has tokens but hasn't approved the contract
+      await token.connect(owner).mint(user2.address, stakeAmount);
+
+      await expect(
+        lendingCircle.connect(user2).borrowResource(resourceId)
+      ).to.be.reverted;
+    });
+  });
+
+  describe("getAvailableResources", function () {
+    it("Should return an array of available resource IDs", async function () {
+      const stakeAmount = ethers.parseUnits("100", 18);
+
+      // Add 3 resources
+      await lendingCircle.connect(owner).addResource("Book 1", 1, 2, stakeAmount, 86400, 0, 0, ""); // ID 1
+      await lendingCircle.connect(owner).addResource("Book 2", 0, 1, stakeAmount, 86400, 0, 0, ""); // ID 2
+      await lendingCircle.connect(owner).addResource("Book 3", 1, 5, stakeAmount, 86400, 0, 0, ""); // ID 3
+
+      // Borrow resource 2 (making it unavailable)
+      await token.connect(owner).mint(user1.address, stakeAmount);
+      await token.connect(user1).approve(lendingCircle.target, stakeAmount);
+      await lendingCircle.connect(user1).borrowResource(2);
+
+      const availableResources = await lendingCircle.getAvailableResources();
+
+      // Expect resources 1 and 3 to be available
+      expect(availableResources).to.have.lengthOf(2);
+      expect(availableResources[0]).to.equal(1);
+      expect(availableResources[1]).to.equal(3);
+    });
+  });
+
+  describe("getMyBorrowedResources", function () {
+    it("Should return an array of resource IDs borrowed by the caller", async function () {
+      const stakeAmount = ethers.parseUnits("100", 18);
+
+      // Add 3 resources
+      await lendingCircle.connect(owner).addResource("Book 1", 1, 2, stakeAmount, 86400, 0, 0, ""); // ID 1
+      await lendingCircle.connect(owner).addResource("Book 2", 0, 1, stakeAmount, 86400, 0, 0, ""); // ID 2
+      await lendingCircle.connect(owner).addResource("Book 3", 1, 5, stakeAmount, 86400, 0, 0, ""); // ID 3
+
+      // user1 borrows resources 1 and 3
+      await token.connect(owner).mint(user1.address, stakeAmount * 2n);
+      await token.connect(user1).approve(lendingCircle.target, stakeAmount * 2n);
+      await lendingCircle.connect(user1).borrowResource(1);
+      await lendingCircle.connect(user1).borrowResource(3);
+
+      // user2 borrows resource 2
+      await token.connect(owner).mint(user2.address, stakeAmount);
+      await token.connect(user2).approve(lendingCircle.target, stakeAmount);
+      await lendingCircle.connect(user2).borrowResource(2);
+
+      const user1Borrowed = await lendingCircle.connect(user1).getMyBorrowedResources();
+      expect(user1Borrowed).to.have.lengthOf(2);
+      expect(user1Borrowed[0]).to.equal(1);
+      expect(user1Borrowed[1]).to.equal(3);
+
+      const user2Borrowed = await lendingCircle.connect(user2).getMyBorrowedResources();
+      expect(user2Borrowed).to.have.lengthOf(1);
+      expect(user2Borrowed[0]).to.equal(2);
+    });
+  });
+
+  describe("getResourceDetails", function () {
+    it("Should return the details of a specific resource", async function () {
+      const stakeAmount = ethers.parseUnits("100", 18);
+      const duration = 7 * 24 * 60 * 60;
+      const penalty = ethers.parseUnits("5", 18);
+      const reward = ethers.parseUnits("1", 18);
+
+      await lendingCircle.connect(owner).addResource(
+        "Test Book",
+        1, // DIGITAL
+        5,
+        stakeAmount,
+        duration,
+        penalty,
+        reward,
+        "ipfs://test-uri"
+      );
+
+      const resourceId = 1;
+      const resourceDetails = await lendingCircle.getResourceDetails(resourceId);
+
+      expect(resourceDetails.id).to.equal(resourceId);
+      expect(resourceDetails.name).to.equal("Test Book");
+      expect(resourceDetails.resourceType).to.equal(1); // DIGITAL
+      expect(resourceDetails.maxConcurrentBorrows).to.equal(5);
+      expect(resourceDetails.currentBorrowerCount).to.equal(0);
+      expect(resourceDetails.stakeAmount).to.equal(stakeAmount);
+      expect(resourceDetails.borrowDuration).to.equal(duration);
+      expect(resourceDetails.latePenaltyPerDay).to.equal(penalty);
+      expect(resourceDetails.onTimeReward).to.equal(reward);
+      expect(resourceDetails.metadataURI).to.equal("ipfs://test-uri");
+      expect(resourceDetails.active).to.be.true;
+    });
+  });
+
   describe("returnResource", function () {
     const resourceId = 1;
     let stakeAmount, duration, penalty, reward;
