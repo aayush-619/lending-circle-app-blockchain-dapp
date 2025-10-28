@@ -254,37 +254,8 @@ contract LendingCircle {
         return borrowedResources;
     }
 
-    function getResourceDetails(uint256 _resourceId) 
-        public 
-        view 
-        returns (
-            uint256 id,
-            string memory name,
-            ResourceType resourceType,
-            uint256 maxConcurrentBorrows,
-            uint256 currentBorrowerCount,
-            uint256 stakeAmount,
-            uint256 borrowDuration,
-            uint256 latePenaltyPerDay,
-            uint256 onTimeReward,
-            string memory metadataURI,
-            bool active
-        ) 
-    {
-        Resource memory resource = resources[_resourceId];
-        return (
-            resource.id,
-            resource.name,
-            resource.resourceType,
-            resource.maxConcurrentBorrows,
-            resource.currentBorrowerCount,
-            resource.stakeAmount,
-            resource.borrowDuration,
-            resource.latePenaltyPerDay,
-            resource.onTimeReward,
-            resource.metadataURI,
-            resource.active
-        );
+    function getResourceDetails(uint256 _resourceId) public view returns (Resource memory) {
+        return resources[_resourceId];
     }
     
     /**
