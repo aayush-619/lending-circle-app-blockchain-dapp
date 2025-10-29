@@ -111,14 +111,3 @@ This will open the application in your browser, usually at `http://localhost:517
 
 ---
 
-## Deploying the Frontend to Vercel
-
-1.  **Push to GitHub:** Make sure all your code is pushed to a GitHub repository.
-2.  **Create a Vercel Account:** Go to [https://vercel.com/](https://vercel.com/) and sign up with your GitHub account.
-3.  **Import Your Project:** On your Vercel dashboard, click "Add New..." -> "Project" and import your GitHub repository.
-4.  **Configure the Project:**
-    *   **Root Directory:** Set the root directory to `frontend`.
-    *   **Build & Development Settings:** Vercel should automatically detect that you are using Vite. The build command should be `npm run build` and the output directory should be `dist`.
-5.  **Deploy:** Click the "Deploy" button.
-
-After the deployment is complete, Vercel will provide you with a public URL for your live dApp.
